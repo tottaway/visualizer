@@ -2,6 +2,7 @@ import cmath
 import sys
 
 import pyaudio
+import audioop
 
 import numpy as np
 import skimage.measure 
@@ -12,17 +13,19 @@ import pyqtgraph as pg
 from pprint import pprint
 
 
-INPUT_FRAMES_PER_BLOCK = 4086
-max_freq = 1000
-min_freq = 0
-ALPHA = 0.5
-pool_factor = 32
+INPUT_FRAMES_PER_BLOCK = 1024
+percent_freq_display = .1
+# lower is a slower moving average
+ALPHA = 0.4
+VOLUME_ALPHA = 0.03
+# pool_factor = 2
 RATE = 44100
-Y_MIN = 0
-Y_MAX = 2.5
-X = 50
-Y = 50
-WAVE_HEIGHT = 7
+
+# MUST BE EVEN
+X = 60
+Y = X
+
+WAVE_HEIGHT = X/5
 
 # shamelessly adapted from here: https://stackoverflow.com/a/4160733    
 class Visualizer(object):
@@ -86,6 +89,8 @@ class Plot2D():
         self.app = pg.mkQApp()
         self.view = gl.GLViewWidget()
         self.view.show()
+        self.view.pan(-(1.2*X), -(0.4*Y), np.mean([X, Y])/1.5)
+        self.view.orbit(153, -3)
 
         self.xgrid = gl.GLGridItem()
         self.ygrid = gl.GLGridItem()
@@ -94,30 +99,29 @@ class Plot2D():
         self.xgrid.rotate(90, 0, 1, 0)
         self.ygrid.rotate(90, 1, 0, 0)
 
-        #mw = QtGui.QMainWindow()
-        #mw.resize(800,800)
+        x = np.linspace(-1, 1, X)
+        y = np.linspace(-1, 1, Y)
+        x_mesh, y_mesh = np.meshgrid(x, y)
 
-        # self.win = pg.GraphicsWindow(title="Basic plotting examples")
-        # self.win.setWindowTitle('pyqtgraph example: Plotting')
-        # self.v = self.win.addViewBox()
-        # self.v.setLimits(yMin=Y_MIN, yMax=Y_MAX, minYRange=Y_MAX - Y_MIN)
-        # # Enable antialiasing for prettier plots
-        # pg.setConfigOptions(antialias=True)
+        radius = np.sqrt(x_mesh**2 + y_mesh**2)
+        self.circle_mask = np.where(radius<=1, 1, 0)
+        self.colors = np.array([0.541, 0.2, 0.141, 1])
+        self.colors = np.ones((X, Y, 4)) * (self.circle_mask[:, :, np.newaxis] *
+                self.colors[np.newaxis, np.newaxis, :])
 
     def start(self):
         if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
             QtGui.QApplication.instance().exec_()
 
     def make_colors(self, z):
-        return (np.ones((X, Y, 4)) *
-               np.array([0.541, 0.2, 0.141, 1])[np.newaxis, np.newaxis, :] *
-               z[:, :, np.newaxis] / WAVE_HEIGHT)
+        return self.colors * z[:, :, np.newaxis]
     def trace(self,name,x,y,z):
         if name not in self.traces:
-            self.traces[name] = gl.GLSurfacePlotItem(x=x, y=y, z=z, colors=self.make_colors(z))
+            self.traces[name] = gl.GLSurfacePlotItem(x=x, y=y, z=z,
+                    colors=self.make_colors(z), computeNormals=False)
             self.view.addItem(self.traces[name])
         else:
-            self.traces[name].setData(x=x, y=y, z=z, colors=self.make_colors(z))
+            self.traces[name].setData(z=z * WAVE_HEIGHT, colors=self.make_colors(z))
 
 if __name__ == "__main__":
     p = Plot2D()
@@ -132,52 +136,68 @@ if __name__ == "__main__":
 
     max_radius = np.sqrt((X/2)**2 + (Y/2)**2)
     radii = np.sqrt(x_values_mesh**2 + y_values_mesh**2) / max_radius
+    # scale data and only include lower pitches if desired
+    radii = radii * percent_freq_display
+    # flip data
+    radii = np.max(np.max(radii)) - radii
+
+    freqs = np.fft.fftfreq(INPUT_FRAMES_PER_BLOCK, 1/RATE)
+    freqs /= np.max(freqs)
+    closest_freq_list = []
+    for radius in np.unique(radii):
+        closest_freq_list.append((radius, np.argmin(np.abs(radius - freqs))))
 
     def update():
-        global p, current_block, first_pass, prev_freq
+        global freqs, current_block, first_pass, prev_freq, max_volume, volume
         # get data from speaker
-        data = np.fromstring(v.listen(), dtype=np.int32)
+        data = v.listen()
+        if not first_pass:
+            volume = (VOLUME_ALPHA * audioop.rms(data, 1)) + (1-VOLUME_ALPHA) * volume
+            max_volume = max(volume, max_volume)
+        else:
+            volume = audioop.rms(data, 1)
+            max_volume = max(volume, 0.00001)
+        data = np.fromstring(data, dtype=np.int32)
+        print(volume)
 
         # apply fft
         next_block = np.fft.fft(data)
+
+        # make courser and reduce noise
+        # should probably have a better way of doing this
+        # next_block = skimage.measure.block_reduce(next_block, (pool_factor,), np.max)
+
         # TODO: What is this?
         # https://gist.github.com/netom/8221b3588158021704d5891a4f9c0edd
-        next_block = np.log10(np.sqrt(
-            np.real(next_block) ** 2 + np.imag(next_block)**2) / INPUT_FRAMES_PER_BLOCK) * 10
+        # used to have imaginary part in here (not sure why)
+        next_block = np.log10(next_block / INPUT_FRAMES_PER_BLOCK) * 20
 
         # normalize 
         # data_mean = data_mean * 0.7 + 0.3 * np.abs(np.mean(data))
         # print("mean" + str(data_mean / max_volume))
         freq_max = np.max(next_block)
-        next_block = (next_block / freq_max) * WAVE_HEIGHT
+        next_block = (next_block / freq_max) * (0.5+(volume/ max_volume))
 
-        # make courser and reduce noise
-        # should probably have a better way of doing this
-        next_block = skimage.measure.block_reduce(next_block, (pool_factor,), np.max)
 
         # special case first pass since I don't really know what the dimesions
         # will be ahead of time (I could probably calculate them if I wanted to)
         if not first_pass:
-            current_block = (ALPHA * current_block) + ((1-ALPHA) * next_block)
+            current_block = ((1-ALPHA) * current_block) + (ALPHA * next_block)
         else:
             current_block = next_block
             first_pass = False
 
         current_block = np.nan_to_num(current_block)
-        freqs = np.fft.fftfreq(next_block.size, 1/RATE)
-        max_freq = np.max(np.abs(freqs))
-        freqs /= max_freq
 
-        for radius in np.unique(radii):
-            closet_freq_idx = np.argmin(np.abs(radius - freqs))
-            display_data[np.where(radii == radius)] = current_block[closet_freq_idx]
+        for radius, idx in closest_freq_list:
+            display_data[np.where(radii == radius)] = current_block[idx]
 
 
         p.trace("sound",x_values, y_values, display_data)
 
     timer = QtCore.QTimer()
     timer.timeout.connect(update)
-    timer.start(20)
+    timer.start(1)
 
     p.start()
 
