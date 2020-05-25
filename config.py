@@ -35,9 +35,9 @@ class Config:
         # set initial camera angle and posisiton
         self.camera_x_pan = -1.2*self.width
         self.camera_y_pan = -0.4*self.height
-        self.camera_z_pan = (self.width + self.height)/3
+        self.camera_z_pan = (self.width + self.height)/2.3
         self.camera_azim_orbit = 153
-        self.camera_elev_orbit = -3
+        self.camera_elev_orbit = 0
 
         # color of the visualizer (brightness will be varied throughout
         self.color = [0.541, 0.2, 0.141, 1]
@@ -53,6 +53,6 @@ class Config:
         # this visualizer using exponential moving averages to smooth the movement
         # cause both by variation in frequency and in volume
         # lower is a slower moving average
-        self.freq_alpha = 0.4
+        self.freq_alpha = 0.3
         self.volume_alpha = 0.03
 

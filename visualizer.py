@@ -13,6 +13,13 @@ CONFIG = Config()
 
 
 def init_radii():
+    """
+    Returns a square matrix where the value of each point is proportional to
+    the distance from that point to the center. Values are scaled and flipped
+    according to the config
+    Basically, it says for each point on the visualizer, which part of the
+    frequency spectrum should be displayed
+    """
     X = CONFIG.width
     Y = CONFIG.height
     x_values = np.arange(-(X-1)/2, np.ceil((X-1)/2), 1)
@@ -32,6 +39,12 @@ def init_radii():
     return radii
 
 def init_closest_freq_list(radii):
+    """
+    Returns a list of tuples (radius, index) where the index is the index in the
+    block returned from the Fourier tranform which contains the height which
+    should be displayed for a given radii
+    Used to map Fourier transform result onto the visualizer
+    """
     freqs = np.fft.fftfreq(CONFIG.input_frames_per_block, 1/CONFIG.rate)
     freqs /= np.max(freqs)
     closest_freq_list = []
