@@ -1,7 +1,7 @@
 class Config:
     def __init__(self):
         """ Sets good defaults for the config values """
-        ### Loggin configs #####################################################
+        ### Logging configs ####################################################
         # useful for debuggin microphone issues
         self.device_logging = False
         self.volume_logging = False
@@ -40,7 +40,14 @@ class Config:
         self.camera_elev_orbit = 0
 
         # color of the visualizer (brightness will be varied throughout
-        self.color = [0.541, 0.2, 0.141, 1]
+        colors = {
+            "blue": [0.0, 0.28, 0.73, 1],
+            "yellow": [0.82, 0.41, 0.12, 1],
+            "green": [0.0, 0.39, 0.0, 1],
+            "red": [0.541, 0.2, 0.141, 1],
+            "pink": [0.85 * 0.8, 0.09 * 0.8, 0.52 * 0.8, 1]
+        }
+        self.color = colors["blue"]
 
 
         ### Misc. Configs ######################################################
