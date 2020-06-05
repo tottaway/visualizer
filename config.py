@@ -30,12 +30,13 @@ class Config:
         # MUST BE EVEN
         self.width = 60
         self.height = self.width # symmetric by default
-        self.wave_height = self.width / 6
+        self.wave_height = self.width / 4.5
+        self.volume_height = self.width / 4
 
         # set initial camera angle and posisiton
         self.camera_x_pan = -1.2*self.width
         self.camera_y_pan = -0.4*self.height
-        self.camera_z_pan = (self.width + self.height)/2.3
+        self.camera_z_pan = (self.width + self.height)/1.9
         self.camera_azim_orbit = 153
         self.camera_elev_orbit = 0
 
@@ -55,7 +56,7 @@ class Config:
         # in general it is always desireable to see the lowest frequencies so
         # this value describes the bottom fraction of the spectrum which will
         # be shown
-        self.percent_freq_display = 0.1
+        self.percent_freq_display = 0.15
 
         # this visualizer using exponential moving averages to smooth the movement
         # cause both by variation in frequency and in volume

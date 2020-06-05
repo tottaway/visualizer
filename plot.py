@@ -53,17 +53,20 @@ class Plotter():
     def make_colors(self, z):
         return self.color_mask * z[:, :, np.newaxis]
 
-    def trace(self,name,z):
+    def trace(self, name, z, volume):
         if name not in self.traces:
             X = self.config.width
             Y = self.config.height
             x = np.arange(-(X-1)/2, np.ceil((X-1)/2), 1)
             y = np.arange(-(Y-1)/2, np.ceil((Y-1)/2), 1)
+            z = z * self.config.wave_height + volume * self.config.volume_height
 
             self.traces[name] = gl.GLSurfacePlotItem(x=x, y=y, z=z,
                     colors=self.make_colors(z), computeNormals=False)
 
             self.view.addItem(self.traces[name])
         else:
-            self.traces[name].setData(z=z * self.config.wave_height,
-                    colors=self.make_colors(z))
+            scaled_z = (z * self.config.wave_height +
+                    volume * self.config.volume_height)
+            self.traces[name].setData(z=scaled_z, colors=self.make_colors(z))
+
